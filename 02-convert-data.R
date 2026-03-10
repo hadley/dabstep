@@ -1,7 +1,6 @@
-library(fs)
 library(nanoparquet)
 
-dir_create("data")
+dir.create("data", showWarnings = FALSE)
 
 acquirer_countries <- read.csv("raw-data/acquirer_countries.csv")
 acquirer_countries$X <- NULL
@@ -10,7 +9,9 @@ write_parquet(acquirer_countries, "data/acquirer_countries.parquet")
 
 merchant_category_codes <- read.csv("raw-data/merchant_category_codes.csv")
 merchant_category_codes$X <- NULL
-merchant_category_codes <- merchant_category_codes[order(merchant_category_codes$mcc), ]
+merchant_category_codes <- merchant_category_codes[
+  order(merchant_category_codes$mcc),
+]
 write_parquet(merchant_category_codes, "data/merchant_category_codes.parquet")
 
 payments <- read.csv("raw-data/payments.csv")
