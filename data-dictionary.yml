@@ -139,11 +139,12 @@ tables:
         constraints: [primary_key]
         description: Merchant name (e.g. "Crossfit_Hanna", "Belles_cookbook_store").
       - name: capture_delay
-        type: enum<1, 2, 7, immediate, manual>
+        type: enum<immediate, <3, 3-5, >5, manual>
         constraints: [required]
         description: >
-          Number of days from authorization to settlement, or "immediate"
-          / "manual". Faster capture is generally more expensive.
+          Capture delay range. Derived from the original numeric days:
+          "immediate", "<3" (under 3 days), "3-5", ">5" (over 5 days),
+          or "manual". Faster capture is generally more expensive.
       - name: merchant_category_code
         type: number(id)
         constraints: [required, foreign_key]
@@ -201,21 +202,34 @@ tables:
           Account types this rule applies to. Empty list means all
           account types.
       - name: capture_delay
-        type: string
+        type: enum<immediate, <3, 3-5, >5, manual>
         description: >
-          Capture delay this rule applies to. Possible values: "<3",
-          "3-5", ">5", "immediate", "manual". Null means all.
-      - name: monthly_fraud_level
-        type: string
+          Capture delay range this rule applies to. Null means all.
+          Matches the same enum used in the merchants table.
+      - name: fraud_level_min
+        type: number(quantity)
+        constraints: [required]
         description: >
-          Fraud level range this rule applies to, as a ratio of monthly
-          fraudulent volume to total volume (e.g. "7.7%-8.3%", ">8.3%").
-          Null means all.
-      - name: monthly_volume
-        type: string
+          Minimum monthly fraud level (%) this rule applies to (inclusive).
+          -Inf means no lower bound.
+      - name: fraud_level_max
+        type: number(quantity)
+        constraints: [required]
         description: >
-          Monthly transaction volume range this rule applies to
-          (e.g. "100k-1m", ">10m"). Amounts in euros. Null means all.
+          Maximum monthly fraud level (%) this rule applies to (exclusive).
+          Inf means no upper bound.
+      - name: volume_min
+        type: number(quantity)
+        constraints: [required]
+        description: >
+          Minimum monthly transaction volume in euros (inclusive).
+          -Inf means no lower bound.
+      - name: volume_max
+        type: number(quantity)
+        constraints: [required]
+        description: >
+          Maximum monthly transaction volume in euros (exclusive).
+          Inf means no upper bound.
       - name: merchant_category_code
         type: list<number(id)>
         description: >
