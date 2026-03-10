@@ -125,6 +125,56 @@ tables:
         constraints: [required]
         description: Country of the acquirer. ISO 3166-1 alpha-2 code.
 
+  merchants:
+    description: >
+      Merchant profiles with business classification and processing
+      configuration. Each row represents one merchant.
+
+    source:
+      parquet: data/merchants.parquet
+
+    fields:
+      - name: merchant
+        type: string
+        constraints: [primary_key]
+        description: Merchant name (e.g. "Crossfit_Hanna", "Belles_cookbook_store").
+      - name: capture_delay
+        type: enum<1, 2, 7, immediate, manual>
+        constraints: [required]
+        description: >
+          Number of days from authorization to settlement, or "immediate"
+          / "manual". Faster capture is generally more expensive.
+      - name: merchant_category_code
+        type: number(id)
+        constraints: [required, foreign_key]
+        description: Four-digit Merchant Category Code classifying the business type.
+      - name: account_type
+        type: enum<D, F, H, R, S>
+        constraints: [required]
+        description: >
+          Business model classification: D = Enterprise - Digital,
+          F = Platform - Franchise, H = Enterprise - Hospitality,
+          R = Enterprise - Retail, S = Platform - SaaS.
+
+  merchant_acquirers:
+    description: >
+      Junction table linking merchants to their acquiring banks. A merchant
+      may route transactions through multiple acquirers (typically in
+      different countries) to enable local acquiring.
+
+    source:
+      parquet: data/merchant_acquirers.parquet
+
+    fields:
+      - name: merchant
+        type: string
+        constraints: [required, foreign_key]
+        description: Merchant name.
+      - name: acquirer
+        type: string
+        constraints: [required, foreign_key]
+        description: Name of the acquiring bank.
+
   merchant_category_codes:
     description: >
       Lookup table of Merchant Category Codes (MCCs). MCCs are four-digit
@@ -150,6 +200,22 @@ relationships:
       Each payment is processed by an acquirer in one country.
     cardinality: many-to-one
     join: payments.acquirer_country = acquirer_countries.country_code
+
+  - description: Each payment belongs to one merchant.
+    cardinality: many-to-one
+    join: payments.merchant = merchants.merchant
+
+  - description: Each merchant has one or more acquirers.
+    cardinality: one-to-many
+    join: merchants.merchant = merchant_acquirers.merchant
+
+  - description: Each merchant-acquirer references one acquirer.
+    cardinality: many-to-one
+    join: merchant_acquirers.acquirer = acquirer_countries.acquirer
+
+  - description: Each merchant has one merchant category code.
+    cardinality: many-to-one
+    join: merchants.merchant_category_code = merchant_category_codes.mcc
 
 glossary:
   acquirer: >
