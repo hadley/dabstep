@@ -175,6 +175,78 @@ tables:
         constraints: [required, foreign_key]
         description: Name of the acquiring bank.
 
+  fees:
+    description: >
+      Fee rules for payment processing. Each row is a rule with constraints
+      that determine which transactions it applies to. A rule matches a
+      transaction when all non-null fields match. Null (scalar) or empty
+      (list) means "matches all values." The fee for a matched transaction
+      is: fixed_amount + rate * eur_amount / 10000.
+
+    source:
+      parquet: data/fees.parquet
+
+    fields:
+      - name: ID
+        type: number(id)
+        constraints: [primary_key]
+        description: Unique identifier for the fee rule.
+      - name: card_scheme
+        type: enum<GlobalCard, NexPay, SwiftCharge, TransactPlus>
+        constraints: [required]
+        description: Card scheme this rule applies to. Always set (never null).
+      - name: account_type
+        type: list<enum<D, F, H, O, R, S>>
+        description: >
+          Account types this rule applies to. Empty list means all
+          account types.
+      - name: capture_delay
+        type: string
+        description: >
+          Capture delay this rule applies to. Possible values: "<3",
+          "3-5", ">5", "immediate", "manual". Null means all.
+      - name: monthly_fraud_level
+        type: string
+        description: >
+          Fraud level range this rule applies to, as a ratio of monthly
+          fraudulent volume to total volume (e.g. "7.7%-8.3%", ">8.3%").
+          Null means all.
+      - name: monthly_volume
+        type: string
+        description: >
+          Monthly transaction volume range this rule applies to
+          (e.g. "100k-1m", ">10m"). Amounts in euros. Null means all.
+      - name: merchant_category_code
+        type: list<number(id)>
+        description: >
+          MCCs this rule applies to. Empty list means all MCCs.
+      - name: is_credit
+        type: boolean
+        description: >
+          Whether this rule applies to credit (TRUE) or debit (FALSE)
+          transactions. Null means both.
+      - name: aci
+        type: list<enum<A, B, C, D, E, F, G>>
+        description: >
+          ACI values this rule applies to. Empty list means all ACI
+          values.
+      - name: fixed_amount
+        type: number(quantity)
+        constraints: [required]
+        description: Fixed fee component in euros per transaction.
+      - name: rate
+        type: number(quantity)
+        constraints: [required]
+        description: >
+          Variable fee rate. Multiply by transaction value and divide
+          by 10000 to get the variable component in euros.
+      - name: intracountry
+        type: boolean
+        description: >
+          Whether this rule applies to domestic (TRUE) or international
+          (FALSE) transactions. A transaction is domestic when
+          issuing_country equals acquirer_country. Null means both.
+
   merchant_category_codes:
     description: >
       Lookup table of Merchant Category Codes (MCCs). MCCs are four-digit

@@ -26,6 +26,14 @@ merchant_acquirers <- data.frame(
 merchant_acquirers <- merchant_acquirers[order(merchant_acquirers$merchant, merchant_acquirers$acquirer), ]
 write_parquet(merchant_acquirers, "data/merchant_acquirers.parquet")
 
+fees <- jsonlite::fromJSON("raw-data/fees.json")
+fees$is_credit <- as.logical(fees$is_credit)
+fees$intracountry <- as.logical(fees$intracountry)
+fees$merchant_category_code <- lapply(fees$merchant_category_code, as.integer)
+fees$account_type <- lapply(fees$account_type, as.character)
+fees$aci <- lapply(fees$aci, as.character)
+arrow::write_parquet(fees, "data/fees.parquet")
+
 payments <- read.csv("raw-data/payments.csv")
 bool_cols <- grep("^(is_|has_)", names(payments), value = TRUE)
 payments[bool_cols] <- lapply(payments[bool_cols], \(x) x == "True")
