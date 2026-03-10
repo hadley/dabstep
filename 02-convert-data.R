@@ -1,4 +1,6 @@
 library(nanoparquet)
+library(dplyr)
+library(lubridate)
 
 dir.create("data", showWarnings = FALSE)
 
@@ -21,11 +23,17 @@ write_parquet(merchant_category_codes, "data/merchant_category_codes.parquet")
 # Merchants & merchant-acquirers -----------------------------------------------
 
 merchant_data <- jsonlite::fromJSON("raw-data/merchant_data.json")
-merchants <- merchant_data[, c("merchant", "capture_delay", "merchant_category_code", "account_type")]
+merchants <- merchant_data[, c(
+  "merchant",
+  "capture_delay",
+  "merchant_category_code",
+  "account_type"
+)]
 # Convert numeric days to fee-matching ranges
 days <- suppressWarnings(as.numeric(merchants$capture_delay))
 merchants$capture_delay[!is.na(days)] <- ifelse(
-  days[!is.na(days)] < 3, "<3",
+  days[!is.na(days)] < 3,
+  "<3",
   ifelse(days[!is.na(days)] <= 5, "3-5", ">5")
 )
 merchants <- merchants[order(merchants$merchant), ]
@@ -35,7 +43,9 @@ merchant_acquirers <- data.frame(
   merchant = rep(merchant_data$merchant, lengths(merchant_data$acquirer)),
   acquirer = unlist(merchant_data$acquirer)
 )
-merchant_acquirers <- merchant_acquirers[order(merchant_acquirers$merchant, merchant_acquirers$acquirer), ]
+merchant_acquirers <- merchant_acquirers[
+  order(merchant_acquirers$merchant, merchant_acquirers$acquirer),
+]
 write_parquet(merchant_acquirers, "data/merchant_acquirers.parquet")
 
 # Fees -------------------------------------------------------------------------
@@ -52,7 +62,9 @@ parse_range <- function(x, parse_val = as.numeric) {
   min <- rep(-Inf, length(x))
   max <- rep(Inf, length(x))
   for (i in seq_along(x)) {
-    if (is.na(x[i])) next
+    if (is.na(x[i])) {
+      next
+    }
     val <- gsub("%", "", x[i])
     if (grepl("^<", val)) {
       max[i] <- parse_val(sub("^<", "", val))
@@ -74,15 +86,16 @@ parse_volume_val <- function(x) {
 }
 
 fraud <- parse_range(fees$monthly_fraud_level)
-fees$fraud_level_min <- fraud$min
-fees$fraud_level_max <- fraud$max
+fees$fraud_percent_min <- fraud$min
+fees$fraud_percent_max <- fraud$max
 
 volume <- parse_range(fees$monthly_volume, parse_volume_val)
 fees$volume_min <- volume$min
 fees$volume_max <- volume$max
 
 # Convert capture_delay to enum matching merchant values
-fees$capture_delay <- factor(fees$capture_delay,
+fees$capture_delay <- factor(
+  fees$capture_delay,
   levels = c("immediate", "<3", "3-5", ">5", "manual")
 )
 
@@ -96,46 +109,17 @@ arrow::write_parquet(fees, "data/fees.parquet")
 payments <- read.csv("raw-data/payments.csv")
 bool_cols <- grep("^(is_|has_)", names(payments), value = TRUE)
 payments[bool_cols] <- lapply(payments[bool_cols], \(x) x == "True")
-
-# Match payments to fee rules --------------------------------------------------
-
-match_fees <- function(payments, fees, merchants) {
-  # Join merchant info onto payments
-  payments <- merge(payments, merchants, by = "merchant")
-
-  # Compute intracountry
-  payments$intracountry <- payments$issuing_country == payments$acquirer_country
-
-  # Compute monthly aggregates per merchant
-  payments$month <- ceiling(payments$day_of_year / 30.44)
-  monthly <- aggregate(
-    cbind(total_volume = eur_amount, fraud_volume = eur_amount * has_fraudulent_dispute) ~ merchant + month,
-    data = payments,
-    FUN = sum
-  )
-  monthly$fraud_level <- monthly$fraud_volume / monthly$total_volume * 100
-  payments <- merge(payments, monthly, by = c("merchant", "month"))
-
-  # Match each payment to fee rules
-  fee_id <- integer(nrow(payments))
-  for (i in seq_len(nrow(payments))) {
-    p <- payments[i, ]
-    matched <- which(
-      fees$card_scheme == p$card_scheme &
-      mapply(\(at) length(at) == 0 || p$account_type %in% at, fees$account_type) &
-      mapply(\(mc) length(mc) == 0 || p$merchant_category_code %in% mc, fees$merchant_category_code) &
-      mapply(\(a) length(a) == 0 || p$aci %in% a, fees$aci) &
-      (is.na(fees$is_credit) | fees$is_credit == p$is_credit) &
-      (is.na(fees$intracountry) | fees$intracountry == p$intracountry) &
-      (is.na(fees$capture_delay) | fees$capture_delay == p$capture_delay) &
-      p$fraud_level >= fees$fraud_level_min & p$fraud_level < fees$fraud_level_max &
-      p$total_volume >= fees$volume_min & p$total_volume < fees$volume_max
-    )
-    fee_id[i] <- if (length(matched) == 1) matched else NA_integer_
-  }
-
-  payments$fee_id <- fees$ID[fee_id]
-  payments
-}
-
+payments$month <- as.integer(month(make_date(payments$year, 1, 1) + days(payments$day_of_year - 1)))
 write_parquet(payments, "data/payments.parquet", compression = "gzip")
+
+# Merchant months --------------------------------------------------------------
+
+merchant_months <- payments |>
+  summarise(
+    total_volume = sum(eur_amount),
+    fraud_volume = sum(eur_amount * has_fraudulent_dispute),
+    .by = c(merchant, year, month)
+  ) |>
+  mutate(fraud_percent = fraud_volume / total_volume * 100) |>
+  arrange(merchant, year, month)
+write_parquet(merchant_months, "data/merchant_months.parquet")

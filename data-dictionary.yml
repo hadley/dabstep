@@ -36,6 +36,10 @@ tables:
         type: number(ordinal)
         constraints: [required]
         description: Day of the year of payment initiation (1-365).
+      - name: month
+        type: number(ordinal)
+        constraints: [required]
+        description: Month of payment initiation (1-12).
       - name: is_credit
         type: boolean
         constraints: [required]
@@ -206,13 +210,13 @@ tables:
         description: >
           Capture delay range this rule applies to. Null means all.
           Matches the same enum used in the merchants table.
-      - name: fraud_level_min
+      - name: fraud_percent_min
         type: number(quantity)
         constraints: [required]
         description: >
           Minimum monthly fraud level (%) this rule applies to (inclusive).
           -Inf means no lower bound.
-      - name: fraud_level_max
+      - name: fraud_percent_max
         type: number(quantity)
         constraints: [required]
         description: >
@@ -261,6 +265,44 @@ tables:
           (FALSE) transactions. A transaction is domestic when
           issuing_country equals acquirer_country. Null means both.
 
+  merchant_months:
+    description: >
+      Monthly aggregates per merchant, computed from the payments data.
+      Used for matching payments to fee rules based on monthly fraud
+      level and transaction volume thresholds.
+
+    source:
+      parquet: data/merchant_months.parquet
+
+    fields:
+      - name: merchant
+        type: string
+        constraints: [primary_key, foreign_key]
+        description: Merchant name.
+      - name: year
+        type: number(ordinal)
+        constraints: [primary_key]
+        description: Year.
+      - name: month
+        type: number(ordinal)
+        constraints: [primary_key]
+        description: Month (1-12).
+      - name: total_volume
+        type: number(quantity)
+        constraints: [required]
+        description: Total transaction volume in euros for this merchant-month.
+      - name: fraud_volume
+        type: number(quantity)
+        constraints: [required]
+        description: >
+          Total volume of transactions flagged as fraudulent disputes,
+          in euros.
+      - name: fraud_percent
+        type: number(quantity)
+        constraints: [required]
+        description: >
+          Fraud rate as a percentage: fraud_volume / total_volume * 100.
+
   merchant_category_codes:
     description: >
       Lookup table of Merchant Category Codes (MCCs). MCCs are four-digit
@@ -298,6 +340,10 @@ relationships:
   - description: Each merchant-acquirer references one acquirer.
     cardinality: many-to-one
     join: merchant_acquirers.acquirer = acquirer_countries.acquirer
+
+  - description: Each merchant has monthly aggregates for each active month.
+    cardinality: one-to-many
+    join: merchants.merchant = merchant_months.merchant
 
   - description: Each merchant has one merchant category code.
     cardinality: many-to-one
