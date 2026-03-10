@@ -1,0 +1,187 @@
+tables:
+  payments:
+    description: >
+      Synthetic dataset of payment transactions processed by a payment
+      processor. Each row represents one transaction.
+
+    source:
+      parquet: data/payments.parquet
+
+    fields:
+      - name: psp_reference
+        type: number(id)
+        constraints: [primary_key]
+        description: Unique payment identifier.
+      - name: merchant
+        type: enum
+        constraints: [required]
+        description: Merchant name (e.g. "Crossfit_Hanna", "Belles_cookbook_store").
+      - name: card_scheme
+        type: enum<GlobalCard, NexPay, SwiftCharge, TransactPlus>
+        constraints: [required]
+        description: Card scheme (network) used for the transaction.
+      - name: year
+        type: number(ordinal)
+        constraints: [required]
+        description: Year of payment initiation.
+      - name: hour_of_day
+        type: number(ordinal)
+        constraints: [required]
+        description: Hour of the day of payment initiation (0-23).
+      - name: minute_of_hour
+        type: number(ordinal)
+        constraints: [required]
+        description: Minute of the hour of payment initiation (0-59).
+      - name: day_of_year
+        type: number(ordinal)
+        constraints: [required]
+        description: Day of the year of payment initiation (1-365).
+      - name: is_credit
+        type: boolean
+        constraints: [required]
+        description: >
+          Whether the card used is a credit card. FALSE indicates a debit
+          card. Credit transactions are typically more expensive.
+      - name: eur_amount
+        type: number(quantity)
+        constraints: [required]
+        description: Payment amount in euros.
+      - name: ip_country
+        type: enum<BE, ES, FR, GR, IT, LU, NL, SE>
+        constraints: [required]
+        description: >
+          Country the shopper was in at the time of the transaction,
+          determined by IP address. ISO 3166-1 alpha-2 code.
+      - name: issuing_country
+        type: enum<BE, ES, FR, GR, IT, LU, NL, SE>
+        constraints: [required]
+        description: >
+          Country of the card-issuing bank. ISO 3166-1 alpha-2 code. When
+          this matches acquirer_country, the transaction is domestic
+          (intracountry).
+      - name: device_type
+        type: enum<Android, iOS, Linux, MacOS, Other, Windows>
+        constraints: [required]
+        description: Device type used for the transaction.
+      - name: ip_address
+        type: string
+        constraints: [required]
+        description: Hashed shopper IP address.
+      - name: email_address
+        type: string
+        description: Hashed shopper email address. May be empty.
+      - name: card_number
+        type: string
+        constraints: [required]
+        description: Hashed card number.
+      - name: shopper_interaction
+        type: enum<Ecommerce, POS>
+        constraints: [required]
+        description: >
+          Payment method. "Ecommerce" for online transactions, "POS" for
+          in-person or in-store transactions.
+      - name: card_bin
+        type: number(id)
+        constraints: [required]
+        description: Bank Identification Number (first digits of card number).
+      - name: has_fraudulent_dispute
+        type: boolean
+        constraints: [required]
+        description: Whether the issuing bank flagged the transaction as a fraudulent dispute.
+      - name: is_refused_by_adyen
+        type: boolean
+        constraints: [required]
+        description: Whether the transaction was refused by Adyen.
+      - name: aci
+        type: enum<A, B, C, D, E, F, G>
+        constraints: [required]
+        description: >
+          Authorization Characteristics Indicator. Identifies how the
+          transaction was submitted to the acquirer: A = Card present,
+          non-authenticated; B = Card present, authenticated; C = Tokenized
+          with mobile device; D = Card not present, card on file;
+          E = Card not present, recurring; F = Card not present, 3-D Secure;
+          G = Card not present, non-3-D Secure.
+      - name: acquirer_country
+        type: enum<FR, GB, IT, NL, US>
+        constraints: [required, foreign_key]
+        description: >
+          Country of the acquiring bank. ISO 3166-1 alpha-2 code.
+
+  acquirer_countries:
+    description: >
+      Lookup table mapping acquirer names to their country codes.
+
+    source:
+      parquet: data/acquirer_countries.parquet
+
+    fields:
+      - name: acquirer
+        type: string
+        constraints: [primary_key]
+        description: Name of the acquiring bank (e.g. "gringotts", "lehman_brothers").
+      - name: country_code
+        type: enum<FR, GB, IT, NL, US>
+        constraints: [required]
+        description: Country of the acquirer. ISO 3166-1 alpha-2 code.
+
+  merchant_category_codes:
+    description: >
+      Lookup table of Merchant Category Codes (MCCs). MCCs are four-digit
+      codes assigned by card networks to classify a merchant's business type.
+
+    source:
+      parquet: data/merchant_category_codes.parquet
+
+    fields:
+      - name: mcc
+        type: number(id)
+        constraints: [primary_key]
+        description: Four-digit Merchant Category Code (e.g. 5411, 5812).
+      - name: description
+        type: string
+        constraints: [required]
+        description: >
+          Human-readable description of the merchant category
+          (e.g. "Grocery Stores, Supermarkets").
+
+relationships:
+  - description: >
+      Each payment is processed by an acquirer in one country.
+    cardinality: many-to-one
+    join: payments.acquirer_country = acquirer_countries.country_code
+
+glossary:
+  acquirer: >
+    The acquiring bank that processes a merchant's card transactions and
+    settles funds. Also called the "acquiring bank" or "merchant bank."
+  card scheme: >
+    The card network (e.g. GlobalCard, NexPay) that sets rules and
+    interchange rates for transactions on its network.
+  ACI: >
+    Authorization Characteristics Indicator. A code that identifies the
+    transaction flow submitted to the acquirer (e.g. card-present vs
+    card-not-present, authenticated vs non-authenticated).
+  MCC: >
+    Merchant Category Code. A four-digit code assigned by card networks to
+    classify a merchant's business type, used for risk assessment, fraud
+    detection, and fee determination.
+  intracountry: >
+    A domestic transaction where the card-issuing country and the acquiring
+    country are the same. Intracountry transactions typically have lower fees
+    than cross-border transactions.
+  BIN: >
+    Bank Identification Number. The first six to eight digits of a card
+    number that identify the issuing bank.
+  POS: >
+    Point of Sale. An in-person or in-store transaction, as opposed to an
+    online (ecommerce) transaction.
+  3-D Secure: >
+    A payment security protocol that adds an extra authentication step for
+    online card-not-present transactions, reducing fraud risk.
+  chargeback: >
+    A reversal of a transaction initiated by the cardholder's issuing bank,
+    typically due to a dispute or fraud claim.
+  capture delay: >
+    The number of days between authorization and settlement of a
+    transaction. Faster capture is generally more expensive.
