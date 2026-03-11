@@ -222,18 +222,11 @@ tables:
         description: >
           Maximum monthly fraud level (%) this rule applies to (exclusive).
           Inf means no upper bound.
-      - name: volume_min
-        type: number(quantity)
-        constraints: [required]
+      - name: monthly_volume
+        type: enum<<100k, 100k-1m, 1m-5m, >5m>
         description: >
-          Minimum monthly transaction volume in euros (inclusive).
-          -Inf means no lower bound.
-      - name: volume_max
-        type: number(quantity)
-        constraints: [required]
-        description: >
-          Maximum monthly transaction volume in euros (exclusive).
-          Inf means no upper bound.
+          Monthly transaction volume range this rule applies to.
+          Null means all. Amounts in euros.
       - name: merchant_category_code
         type: list<number(id)>
         description: >
@@ -302,6 +295,11 @@ tables:
         constraints: [required]
         description: >
           Fraud rate as a percentage: fraud_volume / total_volume * 100.
+      - name: monthly_volume
+        type: enum<<100k, 100k-1m, 1m-5m, >5m>
+        constraints: [required]
+        description: >
+          Binned total_volume matching the fee rule volume ranges.
 
   merchant_category_codes:
     description: >

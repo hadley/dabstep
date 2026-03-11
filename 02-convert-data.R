@@ -89,18 +89,17 @@ fraud <- parse_range(fees$monthly_fraud_level)
 fees$fraud_percent_min <- fraud$min
 fees$fraud_percent_max <- fraud$max
 
-volume <- parse_range(fees$monthly_volume, parse_volume_val)
-fees$volume_min <- volume$min
-fees$volume_max <- volume$max
-
-# Convert capture_delay to enum matching merchant values
+# Convert capture_delay and monthly_volume to enums
 fees$capture_delay <- factor(
   fees$capture_delay,
   levels = c("immediate", "<3", "3-5", ">5", "manual")
 )
+fees$monthly_volume <- factor(
+  fees$monthly_volume,
+  levels = c("<100k", "100k-1m", "1m-5m", ">5m")
+)
 
 fees$monthly_fraud_level <- NULL
-fees$monthly_volume <- NULL
 
 arrow::write_parquet(fees, "data/fees.parquet")
 
@@ -120,6 +119,14 @@ merchant_months <- payments |>
     fraud_volume = sum(eur_amount * has_fraudulent_dispute),
     .by = c(merchant, year, month)
   ) |>
-  mutate(fraud_percent = fraud_volume / total_volume * 100) |>
+  mutate(
+    fraud_percent = fraud_volume / total_volume * 100,
+    monthly_volume = cut(
+      total_volume,
+      breaks = c(0, 1e5, 1e6, 5e6, Inf),
+      labels = c("<100k", "100k-1m", "1m-5m", ">5m"),
+      right = FALSE
+    )
+  ) |>
   arrange(merchant, year, month)
 write_parquet(merchant_months, "data/merchant_months.parquet")

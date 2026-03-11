@@ -1,36 +1,55 @@
 library(nanoparquet)
 library(dplyr)
-library(lubridate)
+library(purrr)
 
 payments <- read_parquet("data/payments.parquet")
 fees <- arrow::read_parquet("data/fees.parquet")
 merchants <- read_parquet("data/merchants.parquet")
 merchant_months <- read_parquet("data/merchant_months.parquet")
 
-# Join merchant info and monthly aggregates onto payments
+# Enrich payments with merchant info and monthly aggregates
 payments <- payments |>
   left_join(merchants, by = "merchant") |>
-  left_join(merchant_months, by = c("merchant", "year", "month"))
+  left_join(merchant_months, by = c("merchant", "year", "month")) |>
+  mutate(intracountry = issuing_country == acquirer_country)
 
-# Compute intracountry
-payments$intracountry <- payments$issuing_country == payments$acquirer_country
-
-# Match each payment to fee rules
-fee_id <- integer(nrow(payments))
-for (i in seq_len(nrow(payments))) {
-  p <- payments[i, ]
-  matched <- which(
-    fees$card_scheme == p$card_scheme &
-    mapply(\(at) length(at) == 0 || p$account_type %in% at, fees$account_type) &
-    mapply(\(mc) length(mc) == 0 || p$merchant_category_code %in% mc, fees$merchant_category_code) &
-    mapply(\(a) length(a) == 0 || p$aci %in% a, fees$aci) &
-    (is.na(fees$is_credit) | fees$is_credit == p$is_credit) &
-    (is.na(fees$intracountry) | fees$intracountry == p$intracountry) &
-    (is.na(fees$capture_delay) | fees$capture_delay == p$capture_delay) &
-    p$fraud_percent >= fees$fraud_percent_min & p$fraud_percent < fees$fraud_percent_max &
-    p$total_volume >= fees$volume_min & p$total_volume < fees$volume_max
+# Join fees on card_scheme + range conditions
+possible <- payments |>
+  inner_join(
+    fees,
+    join_by(
+      card_scheme,
+      between(fraud_percent, fraud_percent_min, fraud_percent_max)
+    ),
+    relationship = "many-to-many",
+    suffix = c("", ".fee")
   )
-  fee_id[i] <- if (length(matched) == 1) matched else NA_integer_
-}
 
-payments$fee_id <- fees$ID[fee_id]
+matched <- possible |>
+  mutate(
+    ok_is_credit = is.na(is_credit.fee) | is_credit == is_credit.fee,
+    ok_intracountry = is.na(intracountry.fee) |
+      intracountry == intracountry.fee,
+    ok_capture_delay = is.na(capture_delay.fee) |
+      capture_delay == capture_delay.fee,
+    ok_monthly_volume = is.na(monthly_volume.fee) |
+      monthly_volume == monthly_volume.fee,
+    ok_account_type = map2_lgl(account_type.fee, account_type, \(at, val) {
+      length(at) == 0 || val %in% at
+    }),
+    ok_mcc = map2_lgl(
+      merchant_category_code.fee,
+      merchant_category_code,
+      \(mc, val) length(mc) == 0 || val %in% mc
+    ),
+    ok_aci = map2_lgl(aci.fee, aci, \(a, val) length(a) == 0 || val %in% a)
+  ) |>
+  filter(
+    ok_is_credit,
+    ok_intracountry,
+    ok_capture_delay,
+    ok_monthly_volume,
+    ok_account_type,
+    ok_mcc,
+    ok_aci
+  )
