@@ -23,7 +23,7 @@ tables:
       - name: year
         type: number(ordinal)
         constraints: [required]
-        description: Year of payment initiation.
+        description: Year of payment initiation. Always 2023 in this dataset.
       - name: hour_of_day
         type: number(ordinal)
         constraints: [required]
@@ -244,13 +244,16 @@ tables:
       - name: fixed_amount
         type: number(quantity)
         constraints: [required]
-        description: Fixed fee component in euros per transaction.
+        description: >
+          Fixed fee component (also called "absolute fee") in euros
+          per transaction.
       - name: rate
         type: number(quantity)
         constraints: [required]
         description: >
-          Variable fee rate. Multiply by transaction value and divide
-          by 10000 to get the variable component in euros.
+          Variable fee rate (also called "relative fee"). Multiply by
+          transaction value and divide by 10000 to get the variable
+          component in euros.
       - name: intracountry
         type: boolean
         description: >
