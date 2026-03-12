@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(curl -sL https://raw.githubusercontent.com/hadley/foodbank/main/data-raw/data-dictionary.yaml | head -80)",
-      "Bash(curl -sL https://raw.githubusercontent.com/hadley/foodbank/main/data-raw/data-dictionary.yaml | tail -80)"
-    ]
-  }
-}
