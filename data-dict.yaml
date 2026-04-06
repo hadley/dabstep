@@ -95,11 +95,11 @@ tables:
         examples: [__8Fy8ayxoTnl0EX9DtIhw, c8fAIVb46qwMwy1_z2TpxA, k97dMMQVxeLQjnWvk0hy3Q, s24En6cJp3dNBoLHXSWiWg, zzzp-SYj0U6e5r2ioWVniQ]
       - name: shopper_interaction
         type: enum
-        values: [Ecommerce, POS]
+        values:
+          Ecommerce: Online transactions
+          POS: In-person or in-store transactions
         constraints: [required]
-        description: >
-          Payment method. "Ecommerce" for online transactions, "POS" for
-          in-person or in-store transactions.
+        description: Payment method.
       - name: card_bin
         type: number(id)
         constraints: [required]
@@ -115,15 +115,18 @@ tables:
         description: Whether the transaction was refused by Adyen.
       - name: aci
         type: enum
-        values: [A, B, C, D, E, F, G]
+        values:
+          A: Card present, non-authenticated
+          B: Card present, authenticated
+          C: Tokenized with mobile device
+          D: Card not present, card on file
+          E: Card not present, recurring
+          F: Card not present, 3-D Secure
+          G: Card not present, non-3-D Secure
         constraints: [required]
         description: >
           Authorization Characteristics Indicator. Identifies how the
-          transaction was submitted to the acquirer: A = Card present,
-          non-authenticated; B = Card present, authenticated; C = Tokenized
-          with mobile device; D = Card not present, card on file;
-          E = Card not present, recurring; F = Card not present, 3-D Secure;
-          G = Card not present, non-3-D Secure.
+          transaction was submitted to the acquirer.
       - name: acquirer_country
         type: enum
         values: [FR, GB, IT, NL, US]
@@ -166,12 +169,15 @@ tables:
         examples: [AI_Pro_Labs, Crafty_Cuisine, Gym_Pro, Read_and_Co, Yoga_Masters]
       - name: capture_delay
         type: enum
-        values: [immediate, <3, 3-5, ">5", manual]
+        values:
+          immediate: Immediate capture
+          "<3": Under 3 days
+          "3-5": 3 to 5 days
+          ">5": Over 5 days
+          manual: Manual capture
         constraints: [required]
         description: >
-          Capture delay range. Derived from the original numeric days:
-          "immediate", "<3" (under 3 days), "3-5", ">5" (over 5 days),
-          or "manual". Faster capture is generally more expensive.
+          Capture delay range. Faster capture is generally more expensive.
       - name: merchant_category_code
         type: number(id)
         constraints: [required, foreign_key]
@@ -179,12 +185,14 @@ tables:
         examples: [5812, 5814, 7372, 7997, 8299]
       - name: account_type
         type: enum
-        values: [D, F, H, R, S]
+        values:
+          D: Enterprise - Digital
+          F: Platform - Franchise
+          H: Enterprise - Hospitality
+          R: Enterprise - Retail
+          S: Platform - SaaS
         constraints: [required]
-        description: >
-          Business model classification: D = Enterprise - Digital,
-          F = Platform - Franchise, H = Enterprise - Hospitality,
-          R = Enterprise - Retail, S = Platform - SaaS.
+        description: Business model classification.
 
   merchant_acquirers:
     description: >
@@ -231,13 +239,23 @@ tables:
         description: Card scheme this rule applies to. Always set (never null).
       - name: account_type
         type: list<enum>
-        values: [D, F, H, R, S]
+        values:
+          D: Enterprise - Digital
+          F: Platform - Franchise
+          H: Enterprise - Hospitality
+          R: Enterprise - Retail
+          S: Platform - SaaS
         description: >
           Account types this rule applies to. Empty list means all
           account types.
       - name: capture_delay
         type: enum
-        values: [immediate, <3, 3-5, ">5", manual]
+        values:
+          immediate: Immediate capture
+          "<3": Under 3 days
+          "3-5": 3 to 5 days
+          ">5": Over 5 days
+          manual: Manual capture
         description: >
           Capture delay range this rule applies to. Null means all.
           Matches the same enum used in the merchants table.
@@ -255,10 +273,14 @@ tables:
           Inf means no upper bound.
       - name: monthly_volume
         type: enum
-        values: [<100k, 100k-1m, 1m-5m, ">5m"]
+        values:
+          "<100k": Under 100k euros
+          100k-1m: 100k to 1m euros
+          1m-5m: 1m to 5m euros
+          ">5m": Over 5m euros
         description: >
           Monthly transaction volume range this rule applies to.
-          Null means all. Amounts in euros.
+          Null means all.
       - name: merchant_category_code
         type: list<number(id)>
         description: >
@@ -270,7 +292,14 @@ tables:
           transactions. Null means both.
       - name: aci
         type: list<enum>
-        values: [A, B, C, D, E, F, G]
+        values:
+          A: Card present, non-authenticated
+          B: Card present, authenticated
+          C: Tokenized with mobile device
+          D: Card not present, card on file
+          E: Card not present, recurring
+          F: Card not present, 3-D Secure
+          G: Card not present, non-3-D Secure
         description: >
           ACI values this rule applies to. Empty list means all ACI
           values.
@@ -338,7 +367,11 @@ tables:
           Fraud rate as a percentage: fraud_volume / total_volume * 100.
       - name: monthly_volume
         type: enum
-        values: [<100k, 100k-1m, 1m-5m, ">5m"]
+        values:
+          "<100k": Under 100k euros
+          100k-1m: 100k to 1m euros
+          1m-5m: 1m to 5m euros
+          ">5m": Over 5m euros
         constraints: [required]
         description: >
           Binned total_volume matching the fee rule volume ranges.
